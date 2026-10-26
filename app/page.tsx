@@ -1,7 +1,7 @@
-// app/dashboard/goals/page.tsx
+// project/app/dashboard/goals/page.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppData } from '@/lib/useAppData';
 import { genId } from '@/lib/storage';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { Target, Plus, Trash2, PiggyBank } from 'lucide-react';
+import { Target, Plus, Trash2, PiggyBank, Award } from 'lucide-react';
 
 export default function GoalsPage() {
   const { data: appData, update, loaded } = useAppData();
@@ -21,6 +21,34 @@ export default function GoalsPage() {
   // Track numeric input states independently for each specific goal item ID
   const [savingsInputs, setSavingsInputs] = useState<{ [key: string]: string }>({});
   const { toast } = useToast();
+
+  // Lifecycle check to clear achieved goals on fresh page load or manual refresh
+  useEffect(() => {
+    if (loaded && appData?.goals?.length) {
+      const hasCompletedGoals = appData.goals.some(goal => (goal.currentAmount || 0) >= goal.targetAmount);
+      
+      if (hasCompletedGoals) {
+        update((prev) => {
+          const resetGoals = (prev.goals || []).map((goal) => {
+            if ((goal.currentAmount || 0) >= goal.targetAmount) {
+              // Automatically restarts the target tracking from zero on initialization
+              return {
+                ...goal,
+                currentAmount: 0,
+              };
+            }
+            return goal;
+          });
+          return { ...prev, goals: resetGoals };
+        });
+
+        toast({
+          title: 'Target Reset Triggered',
+          description: 'Achieved goals have successfully reached 100% and restarted from zero.',
+        });
+      }
+    }
+  }, [loaded]);
 
   if (!loaded) {
     return <div className="p-8 text-center text-muted-foreground">Loading BUDDY Data...</div>;
@@ -177,9 +205,12 @@ export default function GoalsPage() {
           </div>
         ) : (
           (appData.goals || []).map((goal) => {
-            const pct = Math.min(((goal.currentAmount || 0) / goal.targetAmount) * 100, 100);
+            const currentAmount = goal.currentAmount || 0;
+            const isAchieved = currentAmount >= goal.targetAmount;
+            const pct = Math.min((currentAmount / goal.targetAmount) * 100, 100);
+            
             return (
-              <Card key={goal.id} className="relative group overflow-hidden">
+              <Card key={goal.id} className={`relative group overflow-hidden transition-all duration-3xl ${isAchieved ? 'border-emerald-500 bg-emerald-50/30' : ''}`}>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -190,9 +221,14 @@ export default function GoalsPage() {
                 </Button>
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-3">
-                    <span className="text-3xl" role="img" aria-label="goal logo">{goal.emoji}</span>
+                    <span className="text-3xl" role="img" aria-label="goal logo">
+                      {isAchieved ? '🏆' : goal.emoji}
+                    </span>
                     <div>
-                      <CardTitle>{goal.title}</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <CardTitle>{goal.title}</CardTitle>
+                        {isAchieved && <Award className="h-4 w-4 text-emerald-600 animate-bounce" />}
+                      </div>
                       <CardDescription>
                         Target: ₹{goal.targetAmount.toLocaleString('en-IN')}
                       </CardDescription>
@@ -203,13 +239,13 @@ export default function GoalsPage() {
                   <div className="space-y-2">
                     <div className="flex justify-between font-semibold text-sm">
                       <span className="text-muted-foreground">Saved Balance:</span>
-                      <span className="text-emerald-600">
-                        ₹{(goal.currentAmount || 0).toLocaleString('en-IN')}
+                      <span className={isAchieved ? 'text-emerald-600 font-extrabold' : 'text-primary'}>
+                        {isAchieved ? 'Goal Completed!' : `₹${currentAmount.toLocaleString('en-IN')}`}
                       </span>
                     </div>
-                    <Progress value={pct} className="h-2.5" />
+                    <Progress value={pct} className={`h-2.5 ${isAchieved ? 'bg-emerald-200' : ''}`} />
                     <div className="text-right text-xs text-muted-foreground">
-                      {pct.toFixed(1)}% Completed
+                      {isAchieved ? 'Refreshing will reset progress to zero' : `${pct.toFixed(1)}% Completed`}
                     </div>
                   </div>
 
@@ -217,32 +253,7 @@ export default function GoalsPage() {
                     <div className="flex-1 relative">
                       <Input
                         type="number"
-                        placeholder="Add sum (₹)"
+                        placeholder={isAchieved ? "Goal Completed!" : "Add sum (₹)"}
                         className="pr-8"
+                        disabled={isAchieved}
                         value={savingsInputs[goal.id] || ''}
-                        onChange={(e) =>
-                          setSavingsInputs((prev) => ({ ...prev, [goal.id]: e.target.value }))
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleAddSavings(goal.id);
-                        }}
-                      />
-                    </div>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => handleAddSavings(goal.id)}
-                      className="flex items-center gap-1.5 font-bold"
-                    >
-                      <PiggyBank className="h-4 w-4" /> Add Savings
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })
-        )}
-      </div>
-    </div>
-  );
-}
