@@ -18,7 +18,7 @@ export default function GoalsPage() {
   const [newTarget, setNewTarget] = useState('');
   const [newEmoji, setNewEmoji] = useState('🎯');
   
-  // Track numeric inputs locally mapped per goal ID string
+  // Track numeric input states independently for each specific goal item ID
   const [savingsInputs, setSavingsInputs] = useState<{ [key: string]: string }>({});
   const { toast } = useToast();
 
@@ -74,11 +74,11 @@ export default function GoalsPage() {
       return;
     }
 
-    // Process change to make the value additive via app's existing storage state
+    // Process change using the useAppData update function wrapper to persist it automatically
     update((prev) => {
       const updatedGoals = (prev.goals || []).map((goal) => {
         if (goal.id === goalId) {
-          // Additive calculation: Pre-existing amount + newly typed amount
+          // Additive logic: pre-existing saved amount + newly entered amount input
           const newCurrentAmount = Number(goal.currentAmount || 0) + amountToAdd;
           return {
             ...goal,
@@ -94,7 +94,7 @@ export default function GoalsPage() {
       };
     });
 
-    // Reset targeted input field state
+    // Reset targeted inner input field state string
     setSavingsInputs((prev) => ({ ...prev, [goalId]: '' }));
 
     toast({
@@ -126,7 +126,7 @@ export default function GoalsPage() {
         <p className="text-muted-foreground">Manage your custom targets and log progressive savings safely.</p>
       </div>
 
-      {/* New Goal Form Card layout */}
+      {/* New Goal Form Card Layout */}
       <Card>
         <CardHeader>
           <CardTitle>Create a New Target Goal</CardTitle>
