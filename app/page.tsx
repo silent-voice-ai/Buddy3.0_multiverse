@@ -1,7 +1,7 @@
 // project/app/dashboard/goals/page.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAppData } from '@/lib/useAppData';
 import { genId } from '@/lib/storage';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { Target, Plus, Trash2, PiggyBank, Award } from 'lucide-react';
+import { Target, Plus, Trash2, PiggyBank, Sparkles, RefreshCw } from 'lucide-react';
 
 export default function GoalsPage() {
   const { data: appData, update, loaded } = useAppData();
@@ -21,34 +21,6 @@ export default function GoalsPage() {
   // Track numeric input states independently for each specific goal item ID
   const [savingsInputs, setSavingsInputs] = useState<{ [key: string]: string }>({});
   const { toast } = useToast();
-
-  // Lifecycle check to clear achieved goals on fresh page load or manual refresh
-  useEffect(() => {
-    if (loaded && appData?.goals?.length) {
-      const hasCompletedGoals = appData.goals.some(goal => (goal.currentAmount || 0) >= goal.targetAmount);
-      
-      if (hasCompletedGoals) {
-        update((prev) => {
-          const resetGoals = (prev.goals || []).map((goal) => {
-            if ((goal.currentAmount || 0) >= goal.targetAmount) {
-              // Automatically restarts the target tracking from zero on initialization
-              return {
-                ...goal,
-                currentAmount: 0,
-              };
-            }
-            return goal;
-          });
-          return { ...prev, goals: resetGoals };
-        });
-
-        toast({
-          title: 'Target Reset Triggered',
-          description: 'Achieved goals have successfully reached 100% and restarted from zero.',
-        });
-      }
-    }
-  }, [loaded]);
 
   if (!loaded) {
     return <div className="p-8 text-center text-muted-foreground">Loading BUDDY Data...</div>;
@@ -102,12 +74,13 @@ export default function GoalsPage() {
       return;
     }
 
-    // Process change using the useAppData update function wrapper to persist it automatically
+    // FIXED CLOSURE: We read goal state directly from 'prev' inside the closure to ensure 100% additive accuracy
     update((prev) => {
       const updatedGoals = (prev.goals || []).map((goal) => {
         if (goal.id === goalId) {
-          // Additive logic: pre-existing saved amount + newly entered amount input
-          const newCurrentAmount = Number(goal.currentAmount || 0) + amountToAdd;
+          const currentSaved = Number(goal.currentAmount || 0);
+          const newCurrentAmount = currentSaved + amountToAdd;
+          
           return {
             ...goal,
             currentAmount: newCurrentAmount,
@@ -122,12 +95,40 @@ export default function GoalsPage() {
       };
     });
 
-    // Reset targeted inner input field state string
+    // Reset targeted input text field
     setSavingsInputs((prev) => ({ ...prev, [goalId]: '' }));
 
     toast({
       title: 'Savings Logged',
       description: `Successfully added ₹${amountToAdd.toLocaleString('en-IN')} to your tracker.`,
+    });
+  };
+
+  const handleResetGoalCycle = (goalId: string, title: string, targetAmount: number) => {
+    update((prev) => {
+      const updatedGoals = (prev.goals || []).map((goal) => {
+        if (goal.id === goalId) {
+          const totalSaved = Number(goal.currentAmount || 0);
+          // Calculate carryover: If total saved is 1200 and target is 1000, 200 stays as rollover
+          const rolloverAmount = Math.max(0, totalSaved - targetAmount);
+          
+          return {
+            ...goal,
+            currentAmount: rolloverAmount,
+          };
+        }
+        return goal;
+      });
+
+      return {
+        ...prev,
+        goals: updatedGoals,
+      };
+    });
+
+    toast({
+      title: 'New Cycle Started!',
+      description: `"${title}" has been reset to zero. Extra carryover balances were kept in place!`,
     });
   };
 
@@ -210,7 +211,7 @@ export default function GoalsPage() {
             const pct = Math.min((currentAmount / goal.targetAmount) * 100, 100);
             
             return (
-              <Card key={goal.id} className={`relative group overflow-hidden transition-all duration-3xl ${isAchieved ? 'border-emerald-500 bg-emerald-50/30' : ''}`}>
+              <Card key={goal.id} className={`relative group overflow-hidden transition-all duration-300 ${isAchieved ? 'border-emerald-500 bg-emerald-50/40 shadow-md shadow-emerald-100/50' : ''}`}>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -222,12 +223,11 @@ export default function GoalsPage() {
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-3">
                     <span className="text-3xl" role="img" aria-label="goal logo">
-                      {isAchieved ? '🏆' : goal.emoji}
+                      {isAchieved ? '🎉' : goal.emoji}
                     </span>
                     <div>
                       <div className="flex items-center gap-2">
-                        <CardTitle>{goal.title}</CardTitle>
-                        {isAchieved && <Award className="h-4 w-4 text-emerald-600 animate-bounce" />}
+                        <CardTitle className={isAchieved ? 'text-emerald-900 font-bold' : ''}>{goal.title}</CardTitle>
                       </div>
                       <CardDescription>
                         Target: ₹{goal.targetAmount.toLocaleString('en-IN')}
@@ -239,21 +239,22 @@ export default function GoalsPage() {
                   <div className="space-y-2">
                     <div className="flex justify-between font-semibold text-sm">
                       <span className="text-muted-foreground">Saved Balance:</span>
-                      <span className={isAchieved ? 'text-emerald-600 font-extrabold' : 'text-primary'}>
-                        {isAchieved ? 'Goal Completed!' : `₹${currentAmount.toLocaleString('en-IN')}`}
+                      <span className={isAchieved ? 'text-emerald-600 font-extrabold flex items-center gap-1' : 'text-primary'}>
+                        ₹{currentAmount.toLocaleString('en-IN')}
                       </span>
                     </div>
                     <Progress value={pct} className={`h-2.5 ${isAchieved ? 'bg-emerald-200' : ''}`} />
-                    <div className="text-right text-xs text-muted-foreground">
-                      {isAchieved ? 'Refreshing will reset progress to zero' : `${pct.toFixed(1)}% Completed`}
+                    <div className="flex justify-between text-xs font-medium text-muted-foreground">
+                      <span>{pct.toFixed(1)}% Saved</span>
+                      {isAchieved && (
+                        <span className="text-emerald-700 font-bold flex items-center gap-1 animate-pulse">
+                          Goal Achieved! Ready to Reset
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 pt-2 border-t">
-                    <div className="flex-1 relative">
-                      <Input
-                        type="number"
-                        placeholder={isAchieved ? "Goal Completed!" : "Add sum (₹)"}
-                        className="pr-8"
-                        disabled={isAchieved}
-                        value={savingsInputs[goal.id] || ''}
+                  {isAchieved ? (
+                    <div className="pt-2 border-t flex flex-col gap-2">
+                      <div className="p-2.5 rounded-lg bg-emerald-100/70 border border-emerald-200 text-xs text-emerald-800 font-medium flex items-start gap-1.5">
+                        <Sparkles className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
