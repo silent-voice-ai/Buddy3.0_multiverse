@@ -61,20 +61,6 @@ npm run start
 
 No environment variables are required. All data is stored in the browser via localStorage.
 
-## BUDDY Store — Razorpay Setup
-
-The BUDDY Store uses Razorpay Payment Links. To enable payments:
-
-1. Create a Razorpay account at [razorpay.com](https://razorpay.com)
-2. Create Payment Links for each product
-3. Replace the placeholders in `components/buddy-store.tsx`:
-   - `ADD_RAZORPAY_LINK_1` → Your Starter Pack payment link
-   - `ADD_RAZORPAY_LINK_2` → Your Teen Investor Kit payment link
-   - `ADD_RAZORPAY_LINK_3` → Your Complete Pack payment link
-4. Each Buy Now button opens the link in a new tab
-
-**Note:** BUDDY does not collect UPI PIN, OTP, bank passwords, or card details. All payment processing is handled by Razorpay.
-
 ## Project Structure
 
 ```
