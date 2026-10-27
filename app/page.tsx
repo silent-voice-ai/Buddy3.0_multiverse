@@ -23,15 +23,21 @@ export default function GoalsPage() {
   const { toast } = useToast();
 
   if (!loaded) {
-    return <div className="p-8 text-center text-muted-foreground">Loading BUDDY Data...</div>;
+    return (
+      <div className="p-8 text-center text-muted-foreground flex items-center justify-center min-h-[400px]">
+        Loading BUDDY Data...
+      </div>
+    );
   }
 
   const handleCreateGoal = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim() || !newTarget || parseFloat(newTarget) <= 0) {
+    const targetVal = parseFloat(newTarget.replace(/,/g, '').trim());
+
+    if (!newTitle.trim() || isNaN(targetVal) || targetVal <= 0) {
       toast({
         title: 'Invalid Input',
-        description: 'Please specify a name and a valid numeric goal target.',
+        description: 'Please specify a name and a valid numeric target amount.',
         variant: 'destructive',
       });
       return;
@@ -40,9 +46,9 @@ export default function GoalsPage() {
     const newGoal = {
       id: genId(),
       title: newTitle.trim(),
-      targetAmount: parseFloat(newTarget),
+      targetAmount: targetVal,
       currentAmount: 0,
-      emoji: newEmoji || '🎯',
+      emoji: newEmoji.trim() || '🎯',
       createdAt: new Date().toISOString(),
     };
 
@@ -57,33 +63,32 @@ export default function GoalsPage() {
 
     toast({
       title: 'Goal Created!',
-      description: `"${newGoal.title}" has been added to your targets tracking board.`,
+      description: `"${newGoal.title}" has been added to your target tracking board.`,
     });
   };
 
   const handleAddSavings = (goalId: string) => {
-    const inputStr = savingsInputs[goalId];
-    const amountToAdd = parseFloat(inputStr || '');
+    const inputStr = savingsInputs[goalId] || '';
+    const cleanInput = inputStr.replace(/,/g, '').trim();
+    const amountToAdd = parseFloat(cleanInput);
 
     if (isNaN(amountToAdd) || amountToAdd <= 0) {
       toast({
         title: 'Invalid Amount',
-        description: 'Please enter a valid positive numeric amount.',
+        description: 'Please enter a valid positive numeric amount to deposit.',
         variant: 'destructive',
       });
       return;
     }
 
-    // FIXED CLOSURE: We read goal state directly from 'prev' inside the closure to ensure 100% additive accuracy
+    // Read goal state directly from 'prev' inside closure to ensure 100% additive accuracy
     update((prev) => {
       const updatedGoals = (prev.goals || []).map((goal) => {
         if (goal.id === goalId) {
           const currentSaved = Number(goal.currentAmount || 0);
-          const newCurrentAmount = currentSaved + amountToAdd;
-          
           return {
             ...goal,
-            currentAmount: newCurrentAmount,
+            currentAmount: currentSaved + amountToAdd,
           };
         }
         return goal;
@@ -99,7 +104,7 @@ export default function GoalsPage() {
     setSavingsInputs((prev) => ({ ...prev, [goalId]: '' }));
 
     toast({
-      title: 'Savings Logged',
+      title: 'Savings Logged!',
       description: `Successfully added ₹${amountToAdd.toLocaleString('en-IN')} to your tracker.`,
     });
   };
@@ -109,7 +114,7 @@ export default function GoalsPage() {
       const updatedGoals = (prev.goals || []).map((goal) => {
         if (goal.id === goalId) {
           const totalSaved = Number(goal.currentAmount || 0);
-          // Calculate carryover: If total saved is 1200 and target is 1000, 200 stays as rollover
+          // Carryover: If total saved is 1200 and target is 1000, 200 stays as rollover
           const rolloverAmount = Math.max(0, totalSaved - targetAmount);
           
           return {
@@ -128,12 +133,12 @@ export default function GoalsPage() {
 
     toast({
       title: 'New Cycle Started!',
-      description: `"${title}" has been reset to zero. Extra carryover balances were kept in place!`,
+      description: `"${title}" has been reset. Any excess carryover balances were kept in place!`,
     });
   };
 
   const handleDeleteGoal = (goalId: string, title: string) => {
-    if (!confirm(`Are you sure you want to drop "${title}" from your goals?`)) return;
+    if (!confirm(`Are you sure you want to delete "${title}"?`)) return;
 
     update((prev) => ({
       ...prev,
@@ -142,7 +147,7 @@ export default function GoalsPage() {
 
     toast({
       title: 'Goal Removed',
-      description: `"${title}" has been deleted.`,
+      description: `"${title}" has been removed from your targets.`,
     });
   };
 
@@ -152,14 +157,14 @@ export default function GoalsPage() {
         <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
           <Target className="h-8 w-8 text-primary" /> Target Dashboard
         </h1>
-        <p className="text-muted-foreground">Manage your custom targets and log progressive savings safely.</p>
+        <p className="text-muted-foreground">Manage your custom savings goals and log progressive deposits safely.</p>
       </div>
 
-      {/* New Goal Form Card Layout */}
+      {/* New Goal Form Card */}
       <Card>
         <CardHeader>
           <CardTitle>Create a New Target Goal</CardTitle>
-          <CardDescription>Specify an amount to save toward custom financial metrics.</CardDescription>
+          <CardDescription>Specify an amount to save toward a custom financial target.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleCreateGoal} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
@@ -167,7 +172,7 @@ export default function GoalsPage() {
               <Label htmlFor="title">Goal Name</Label>
               <Input
                 id="title"
-                placeholder="e.g. Dream Laptop"
+                placeholder="e.g. New Laptop"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
               />
@@ -198,20 +203,25 @@ export default function GoalsPage() {
         </CardContent>
       </Card>
 
-      {/* Grid container rendering target progress fields */}
+      {/* Active Goals Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {(appData.goals || []).length === 0 ? (
           <div className="col-span-full text-center py-12 text-muted-foreground border-2 border-dashed rounded-xl bg-card">
-            No active targets found. Complete the form configuration above to begin tracking.
+            No active targets found. Fill out the form above to start tracking your savings!
           </div>
         ) : (
           (appData.goals || []).map((goal) => {
             const currentAmount = goal.currentAmount || 0;
             const isAchieved = currentAmount >= goal.targetAmount;
             const pct = Math.min((currentAmount / goal.targetAmount) * 100, 100);
-            
+
             return (
-              <Card key={goal.id} className={`relative group overflow-hidden transition-all duration-300 ${isAchieved ? 'border-emerald-500 bg-emerald-50/40 shadow-md shadow-emerald-100/50' : ''}`}>
+              <Card
+                key={goal.id}
+                className={`relative group overflow-hidden transition-all duration-300 ${
+                  isAchieved ? 'border-emerald-500 bg-emerald-50/40 shadow-md shadow-emerald-100/50' : ''
+                }`}
+              >
                 <Button
                   variant="ghost"
                   size="icon"
@@ -220,41 +230,98 @@ export default function GoalsPage() {
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
+
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-3">
-                    <span className="text-3xl" role="img" aria-label="goal logo">
+                    <span className="text-3xl" role="img" aria-label="goal emoji">
                       {isAchieved ? '🎉' : goal.emoji}
                     </span>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <CardTitle className={isAchieved ? 'text-emerald-900 font-bold' : ''}>{goal.title}</CardTitle>
-                      </div>
+                      <CardTitle className={isAchieved ? 'text-emerald-900 font-bold' : ''}>
+                        {goal.title}
+                      </CardTitle>
                       <CardDescription>
                         Target: ₹{goal.targetAmount.toLocaleString('en-IN')}
                       </CardDescription>
                     </div>
                   </div>
                 </CardHeader>
+
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <div className="flex justify-between font-semibold text-sm">
                       <span className="text-muted-foreground">Saved Balance:</span>
-                      <span className={isAchieved ? 'text-emerald-600 font-extrabold flex items-center gap-1' : 'text-primary'}>
+                      <span
+                        className={
+                          isAchieved
+                            ? 'text-emerald-600 font-extrabold flex items-center gap-1'
+                            : 'text-primary'
+                        }
+                      >
                         ₹{currentAmount.toLocaleString('en-IN')}
                       </span>
                     </div>
+
                     <Progress value={pct} className={`h-2.5 ${isAchieved ? 'bg-emerald-200' : ''}`} />
+
                     <div className="flex justify-between text-xs font-medium text-muted-foreground">
                       <span>{pct.toFixed(1)}% Saved</span>
                       {isAchieved && (
                         <span className="text-emerald-700 font-bold flex items-center gap-1 animate-pulse">
-                          Goal Achieved! Ready to Reset
+                          Goal Achieved!
                         </span>
                       )}
                     </div>
                   </div>
 
+                  {/* Actions / Inputs Area */}
                   {isAchieved ? (
                     <div className="pt-2 border-t flex flex-col gap-2">
-                      <div className="p-2.5 rounded-lg bg-emerald-100/70 border border-emerald-200 text-xs text-emerald-800 font-medium flex items-start gap-1.5">
-                        <Sparkles className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
+                      <div className="p-2.5 rounded-lg bg-emerald-100/70 border border-emerald-200 text-xs text-emerald-800 font-medium flex items-center gap-1.5">
+                        <Sparkles className="h-4 w-4 shrink-0 text-emerald-600" />
+                        Target reached! You can start a new savings cycle for this goal.
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full flex items-center justify-center gap-2 border-emerald-500 text-emerald-700 hover:bg-emerald-100"
+                        onClick={() => handleResetGoalCycle(goal.id, goal.title, goal.targetAmount)}
+                      >
+                        <RefreshCw className="h-4 w-4" /> Start Next Cycle
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="pt-2 border-t flex items-center gap-2">
+                      <Input
+                        type="number"
+                        placeholder="Add savings (₹)"
+                        value={savingsInputs[goal.id] || ''}
+                        onChange={(e) =>
+                          setSavingsInputs((prev) => ({ ...prev, [goal.id]: e.target.value }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddSavings(goal.id);
+                          }
+                        }}
+                        className="h-9"
+                      />
+                      <Button
+                        size="sm"
+                        className="shrink-0 flex items-center gap-1.5"
+                        onClick={() => handleAddSavings(goal.id)}
+                      >
+                        <PiggyBank className="h-4 w-4" /> Deposit
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
